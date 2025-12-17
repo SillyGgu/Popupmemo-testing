@@ -1,0 +1,199 @@
+<div class="extension-block popupmemo-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>팝업 메모 설정</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        
+        <div class="inline-drawer-content">
+            <!-- 탭 네비게이션 -->
+            <div class="popupmemo-nav-bar">
+                <div class="popupmemo-nav-item active" data-tab="general">기본 설정</div>
+                <div class="popupmemo-nav-item" data-tab="design">디자인</div>
+                <div class="popupmemo-nav-item" data-tab="bubbles">말풍선/대사</div>
+                <div class="popupmemo-nav-item" data-tab="data">데이터 관리</div>
+            </div>
+
+            <!-- 1. 기본 설정 탭 -->
+            <div id="tab-general" class="popupmemo-tab-content active">
+                <div class="control-group">
+                    <div class="popupmemo-toggle-wrapper">
+                        <span class="popupmemo-toggle-label" onclick="$('#memo_enable_toggle').click()">메모장 기능 활성화</span>
+                        <label class="popupmemo-switch">
+                            <input type="checkbox" id="memo_enable_toggle">
+                            <span class="popupmemo-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="popupmemo-toggle-wrapper">
+                        <span class="popupmemo-toggle-label" onclick="$('#memo_show_wand_button').click()">지팡이 메뉴에 버튼 표시</span>
+                        <label class="popupmemo-switch">
+                            <input type="checkbox" id="memo_show_wand_button">
+                            <span class="popupmemo-slider"></span>
+                        </label>
+                    </div>
+
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.03); border-radius: 12px; border: 1px solid #eee;">
+                        <div class="popupmemo-toggle-wrapper">
+                            <div class="popupmemo-toggle-label" onclick="$('#memo_storage_mode_toggle').click()">
+                                <span>💾 캐릭터별 공용 저장소 사용 (Global Mode)</span>
+                                <div style="font-size: 0.85em; color: #888; margin-top: 5px; font-weight: normal;">
+                                    ON: 캐릭터 설정에 저장 (모든 채팅에서 공유)<br>
+                                    OFF: 현재 채팅 내역에 저장 (채팅별 개별 메모)
+                                </div>
+                            </div>
+                            <label class="popupmemo-switch">
+                                <input type="checkbox" id="memo_storage_mode_toggle">
+                                <span class="popupmemo-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 디자인 탭 -->
+            <div id="tab-design" class="popupmemo-tab-content">
+                <div class="menu-section">
+                    <h3>배경 및 투명도</h3>
+                    <div class="control-group">
+                        <label>
+                            투명도 (0.0 ~ 1.0): 
+                            <input type="number" id="memo_bg_opacity_input" value="0.7" min="0.0" max="1.0" step="0.05">
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <input type="text" id="memo_bg_image_input" placeholder="배경 이미지 URL (선택 사항)" style="flex-grow: 1;">
+                            <button id="memo_apply_bg_btn" class="menu_button blue_button">배경 적용</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="sysHR">
+
+                <div class="menu-section">
+                    <h3>색상 테마 (말풍선 & 테두리)</h3>
+                    <p class="memo-hint">말풍선 배경색과 프로필 테두리 색상이 함께 변경됩니다.</p>
+                    <div class="control-group">
+                        <label>
+                            캐릭터 테마 색상:
+                            <div style="display: flex; gap: 10px;">
+                                <input type="color" id="memo_char_bubble_color_input" value="#FFFFFF" style="height: 35px; width: 60px;">
+                                <input type="text" id="memo_char_bubble_color_input_text" placeholder="#FFFFFF" readonly>
+                            </div>
+                        </label>
+                        <label>
+                            페르소나 테마 색상:
+                            <div style="display: flex; gap: 10px;">
+                                <input type="color" id="memo_user_bubble_color_input" value="#F0F0F0" style="height: 35px; width: 60px;">
+                                <input type="text" id="memo_user_bubble_color_input_text" placeholder="#F0F0F0" readonly>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 말풍선/대사 탭 -->
+            <div id="tab-bubbles" class="popupmemo-tab-content">
+                <div class="menu-section">
+                    <h3>전역(Global) 대사 설정</h3>
+                    <p class="memo-hint">모든 캐릭터에게 공통으로 나타나는 대사입니다. (5초마다 순환)</p>
+                    
+                    <div class="control-group">
+                        <label>캐릭터 대사 1~3:</label>
+                        <input type="text" id="memo_global_char_bubble_1" class="memo-global-char-bubble-input" placeholder="전역 캐릭터 대사 1">
+                        <input type="text" id="memo_global_char_bubble_2" class="memo-global-char-bubble-input" placeholder="전역 캐릭터 대사 2">
+                        <input type="text" id="memo_global_char_bubble_3" class="memo-global-char-bubble-input" placeholder="전역 캐릭터 대사 3">
+                        
+                        <label style="margin-top: 10px;">페르소나 대사 1~3:</label>
+                        <input type="text" id="memo_global_user_bubble_1" class="memo-global-user-bubble-input" placeholder="전역 페르소나 대사 1">
+                        <input type="text" id="memo_global_user_bubble_2" class="memo-global-user-bubble-input" placeholder="전역 페르소나 대사 2">
+                        <input type="text" id="memo_global_user_bubble_3" class="memo-global-user-bubble-input" placeholder="전역 페르소나 대사 3">
+                        
+                        <div class="button-row">
+                            <button id="memo_reset_bubbles_btn" class="menu_button red_button">전역 대사 초기화</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="sysHR">
+
+                <div class="menu-section" style="background: #fcfcfc; padding: 15px; border-radius: 10px; border: 1px solid #eee;">
+                    <h3>현재 캐릭터(<span id="memo_current_char_name"></span>) 개별 오버라이드</h3>
+                    <p class="memo-hint">이 내용을 입력하면 위 전역 설정 대신 이 설정이 우선 적용됩니다.</p>
+                    
+                    <!-- 캐릭터 미선택 시 표시되는 메시지 -->
+                    <div id="memo_no_char_message" style="text-align: center; color: #888; padding: 20px; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 현재 선택된 캐릭터가 없습니다.<br>채팅을 열거나 캐릭터를 선택해주세요.
+                    </div>
+
+                    <!-- 캐릭터 선택 시 표시되는 입력 폼 -->
+                    <div id="memo_override_container" class="control-group" style="display: none;">
+                        <label>프로필 이미지 교체 (URL):</label>
+                        <input type="text" id="memo_char_image_override" placeholder="캐릭터 이미지 덮어쓰기">
+                        <input type="text" id="memo_user_image_override" placeholder="User 이미지 덮어쓰기" style="margin-top:5px;">
+                        
+                        <label style="margin-top: 10px;">개별 대사 설정:</label>
+                        <input type="text" id="memo_char_bubble_1" class="memo-char-bubble-input" placeholder="캐릭터 전용 대사 1">
+                        <input type="text" id="memo_char_bubble_2" class="memo-char-bubble-input" placeholder="캐릭터 전용 대사 2">
+                        <input type="text" id="memo_char_bubble_3" class="memo-char-bubble-input" placeholder="캐릭터 전용 대사 3">
+                        
+                        <input type="text" id="memo_user_char_bubble_1" class="memo-user-char-bubble-input" placeholder="페르소나 전용 대사 1" style="margin-top: 5px;">
+                        <input type="text" id="memo_user_char_bubble_2" class="memo-user-char-bubble-input" placeholder="페르소나 전용 대사 2">
+                        <input type="text" id="memo_user_char_bubble_3" class="memo-user-char-bubble-input" placeholder="페르소나 전용 대사 3">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 데이터 관리 탭 -->
+            <div id="tab-data" class="popupmemo-tab-content">
+                <div class="menu-section">
+                    <h3>메모 데이터베이스</h3>
+                    <p class="memo-hint">캐릭터별 저장소(Global Mode)에 저장된 모든 메모 목록입니다.</p>
+                    <div id="memo_char_list_container" class="scrollable-list" style="height: 300px; max-height: 400px;">
+                        <!-- JS에서 리스트 생성됨 -->
+                    </div>
+                </div>
+
+                <hr class="sysHR">
+                
+                <div class="menu-section">
+                    <h3>설정 백업/복원</h3>
+                    <div class="button-row">
+                        <button id="memo_export_btn" class="menu_button blue_button">
+                            <i class="fa-solid fa-file-export"></i> 설정 내보내기
+                        </button>
+                        <button id="memo_import_btn_trigger" class="menu_button">
+                            <i class="fa-solid fa-file-import"></i> 설정 불러오기
+                        </button>
+                        <input type="file" id="memo_import_file" style="display: none;" accept=".json">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // 탭 전환 로직 (수정됨: this 컨텍스트와 find 사용으로 버그 방지)
+    $('.popupmemo-settings .popupmemo-nav-item').on('click', function() {
+        const $this = $(this);
+        const tabId = $this.data('tab');
+        const $parent = $this.closest('.popupmemo-settings'); // 현재 설정창 인스턴스 찾기
+
+        // 탭 스타일 변경
+        $parent.find('.popupmemo-nav-item').removeClass('active');
+        $this.addClass('active');
+        
+        // 탭 컨텐츠 변경 (강제 display 제어)
+        $parent.find('.popupmemo-tab-content').removeClass('active').hide();
+        $parent.find('#tab-' + tabId).addClass('active').show();
+    });
+
+    // 컬러 피커 텍스트 동기화
+    $('#memo_char_bubble_color_input').on('input', function() {
+        $('#memo_char_bubble_color_input_text').val(this.value.toUpperCase());
+    });
+    $('#memo_user_bubble_color_input').on('input', function() {
+        $('#memo_user_bubble_color_input_text').val(this.value.toUpperCase());
+    });
+</script>

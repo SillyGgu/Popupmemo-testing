@@ -1,0 +1,12 @@
+{
+    "display_name": "팝업 메모장 (Popup Memo)",
+    "loading_order": 210,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "settings": "settings.html",
+    "author": "SillyGgu",
+    "version": "3.0.0",
+    "homePage": "https://github.com/SillyGgu/Popupmemo"
+}
