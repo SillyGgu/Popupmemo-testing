@@ -1,5 +1,5 @@
 {
-    "display_name": "팝업 메모장 (Popup Memo)",
+    "display_name": "팝업 메모장 테스트중",
     "loading_order": 210,
     "requires": [],
     "optional": [],
@@ -7,6 +7,6 @@
     "css": "style.css",
     "settings": "settings.html",
     "author": "SillyGgu",
-    "version": "3.0.0",
-    "homePage": "https://github.com/SillyGgu/Popupmemo"
+    "version": "3.5.0",
+    "homePage": "https://github.com/SillyGgu/Popupmemo-testing"
 }

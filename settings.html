@@ -174,26 +174,22 @@
 </div>
 
 <script>
-    // 탭 전환 로직 (수정됨: this 컨텍스트와 find 사용으로 버그 방지)
+    // 탭 전환 로직 개선
     $('.popupmemo-settings .popupmemo-nav-item').on('click', function() {
         const $this = $(this);
         const tabId = $this.data('tab');
-        const $parent = $this.closest('.popupmemo-settings'); // 현재 설정창 인스턴스 찾기
+        const $parent = $this.closest('.popupmemo-settings');
 
-        // 탭 스타일 변경
         $parent.find('.popupmemo-nav-item').removeClass('active');
         $this.addClass('active');
         
-        // 탭 컨텐츠 변경 (강제 display 제어)
-        $parent.find('.popupmemo-tab-content').removeClass('active').hide();
-        $parent.find('#tab-' + tabId).addClass('active').show();
+        // 모든 탭 컨텐츠를 숨기고 선택된 것만 표시
+        $parent.find('.popupmemo-tab-content').hide().removeClass('active');
+        $parent.find('#tab-' + tabId).show().addClass('active');
     });
 
-    // 컬러 피커 텍스트 동기화
-    $('#memo_char_bubble_color_input').on('input', function() {
-        $('#memo_char_bubble_color_input_text').val(this.value.toUpperCase());
-    });
-    $('#memo_user_bubble_color_input').on('input', function() {
-        $('#memo_user_bubble_color_input_text').val(this.value.toUpperCase());
+    // 컬러 피커 동기화
+    $('#memo_char_bubble_color_input, #memo_user_bubble_color_input').on('input', function() {
+        $(this).next('input[type="text"]').val(this.value.toUpperCase());
     });
 </script>

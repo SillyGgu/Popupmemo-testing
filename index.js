@@ -18,7 +18,7 @@ import {
     user_avatar
 } from '../../../personas.js';
 
-const extensionName = 'Popupmemo-testing';
+const extensionName = 'Popupmemo';
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const DEFAULT_AVATAR_PATH = '/img/five.png';
 
@@ -26,6 +26,7 @@ let charBubbleTimer;
 let charCurrentBubbleIndex = 0;
 let userBubbleTimer;
 let userCurrentBubbleIndex = 0;
+let isTabEditMode = false;
 
 const DEFAULT_SETTINGS = {
     enabled: true,
@@ -124,7 +125,7 @@ function createMemoPopup() {
 
     const memoHTML = `
         <div id="popup-memo-container">
-            <!-- 상단: 캐릭터 영역 (좌측 Avatar, 우측 Bubble) -->
+            <div id="memo-tabs-container"></div>
             <div id="memo-header">
                 <div id="memo-profile-area">
                     <img id="memo-char-avatar" src="${DEFAULT_AVATAR_PATH}" alt="Character Avatar">
@@ -138,11 +139,8 @@ function createMemoPopup() {
                     </button>
                 </div>
             </div>
-
-            <!-- 중간: 메모 입력창 -->
             <textarea id="popup-memo-textarea" placeholder="메모를 작성하세요."></textarea>
-            
-            <!-- 하단: User 영역 (좌측 Bubble, 우측 Avatar) -->
+            <div id="memo-resize-handle"></div>
             <div id="memo-user-area">
                 <div id="memo-user-bubble-display" class="speech-bubble-container user-speech-bubble-container">
                     <span class="speech-bubble user-speech-bubble" id="memo-user-bubble-content"></span>
@@ -159,16 +157,18 @@ function createMemoPopup() {
     $('#memo-toggle-ignore').on('click', toggleIgnoreClick);
     $memoTextarea.on('input', saveMemoContentDebounced);
 
-    // 드래그 기능 연결 (PC 마우스 전용)
     bindDragFunctionality($memoContainer);
-
-    $memoTextarea.on('mousedown', (e) => e.stopPropagation());
+    
+    $memoTextarea.on('mousedown', (e) => {
+        // 텍스트 영역 클릭 시 탭 수정 팝업이 열려있다면 닫기
+        $('#memo-tab-edit-popup').remove();
+        e.stopPropagation();
+    });
 
     $memoContainer.on('mouseup', function() {
         if (window.innerWidth > 768) {
             const currentWidth = $memoContainer.width();
             const currentHeight = $memoContainer.height();
-
             if (settings.width !== currentWidth || settings.height !== currentHeight) {
                 settings.width = currentWidth;
                 settings.height = currentHeight;
@@ -177,111 +177,117 @@ function createMemoPopup() {
         }
     });
     
-    // 화면 리사이즈나 회전 시 위치 재조정 (모바일 대응)
     $(window).on('resize', function() {
         if (settings.enabled && window.innerWidth <= 768) {
             applySettings();
         }
     });
-    
-    console.log('[PopupMemo] DOM Created successfully.');
 }
 
 function bindDragFunctionality($element) {
     let isDragging = false;
-    let startX, startY;
+    let isResizing = false;
+    let startX, startY, startW, startH;
     let initialLeft, initialTop;
     const container = $element[0];
 
-    if (!container) return;
+    $element.on('mousedown', '#memo-resize-handle', function(e) {
+        isResizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startW = $element.width();
+        startH = $element.height();
+        e.stopPropagation();
+        e.preventDefault();
+    });
 
     function onDragStart(e) {
-        // 모바일(화면 폭 768px 이하)이면 드래그 아예 시작 안 함
-        if (window.innerWidth <= 768) return;
-
-        if ($(e.target).is('#memo-char-avatar') || $(e.target).is('#memo-user-avatar')) return;
+        if (window.innerWidth <= 768 || isResizing) return;
+        if ($(e.target).closest('#memo-controls-area').length || 
+            $(e.target).closest('#memo-tabs-container').length || 
+            $(e.target).is('#popup-memo-textarea') || 
+            $(e.target).is('#memo-resize-handle')) return;
         
-        const rect = container.getBoundingClientRect();
-        const isResizeHandle = (e.clientX > rect.right - 15 && e.clientY > rect.bottom - 15);
-
-        if ($(e.target).closest('#memo-controls-area').length || $(e.target).is('#popup-memo-textarea') || isResizeHandle) {
-            return;
-        }
-
         isDragging = true;
         $element.addClass('grabbing');
-        
         startX = e.clientX;
         startY = e.clientY;
         initialLeft = container.offsetLeft;
         initialTop = container.offsetTop;
     }
 
-    function onDragMove(e) {
-        if (!isDragging) return;
+    $(document).on('mousemove', function(e) {
+        if (isResizing) {
+            const newWidth = startW + (e.clientX - startX);
+            const newHeight = startH + (e.clientY - startY);
+            $element.css({ width: Math.max(280, newWidth), height: Math.max(200, newHeight) });
+            settings.width = $element.width();
+            settings.height = $element.height();
+        } else if (isDragging) {
+            let newLeft = initialLeft + (e.clientX - startX);
+            let newTop = initialTop + (e.clientY - startY);
+            container.style.left = `${newLeft}px`;
+            container.style.top = `${newTop}px`;
+            settings.pos = { left: newLeft, top: newTop };
+        }
+    });
 
-        let deltaX = e.clientX - startX;
-        let deltaY = e.clientY - startY;
-
-        let newLeft = initialLeft + deltaX;
-        let newTop = initialTop + deltaY;
-
-        const maxLeft = window.innerWidth - 50;
-        const maxTop = window.innerHeight - 50;
-
-        newLeft = Math.max(-100, Math.min(newLeft, maxLeft));
-        newTop = Math.max(0, Math.min(newTop, maxTop));
-
-        container.style.left = `${newLeft}px`;
-        container.style.top = `${newTop}px`;
-
-        settings.pos.left = newLeft;
-        settings.pos.top = newTop;
-    }
-
-    function onDragEnd() {
-        if (isDragging) {
+    $(document).on('mouseup', function() {
+        if (isDragging || isResizing) {
             isDragging = false;
+            isResizing = false;
             $element.removeClass('grabbing');
             saveSettingsDebounced();
         }
-    }
+    });
 
-    // 마우스 이벤트만 바인딩
     $element.on('mousedown', onDragStart);
-    $(document).on('mousemove', onDragMove);
-    $(document).on('mouseup', onDragEnd);
 }
 
 function getCharacterKey(chid) {
     if (chid === undefined || chid === null || chid === -1) return null;
     const char = characters[chid];
     if (!char) return null;
-    // 아바타 파일명을 고유 ID로 사용 (없으면 이름 사용)
     return char.avatar || char.name;
 }
 
 function getCurrentCharData() {
-    // this_chid(인덱스) 대신 고유 키(파일명)를 가져옴
     const charKey = getCharacterKey(this_chid) || 'no_char_selected'; 
-    
     if (!settings.charData) settings.charData = {}; 
 
     if (!settings.charData[charKey]) {
         settings.charData[charKey] = {
-            memoContent: '', 
             charBubbles: ['', '', ''], 
             charImageOverride: '',
             userCharBubbles: ['', '', ''], 
-            userImageOverride: '', 
+            userImageOverride: '',
+            tabs: [{ name: '기본 메모', content: '', color: '#ffffff' }],
+            activeTabIndex: 0
         };
     }
     
-    if (!settings.charData[charKey].charBubbles) settings.charData[charKey].charBubbles = ['', '', ''];
-    if (!settings.charData[charKey].userCharBubbles) settings.charData[charKey].userCharBubbles = ['', '', ''];
-    if (!settings.charData[charKey].userImageOverride) settings.charData[charKey].userImageOverride = ''; 
+    const data = settings.charData[charKey];
 
-    return settings.charData[charKey];
+    // 필수 필드 보정
+    if (!data.charBubbles) data.charBubbles = ['', '', ''];
+    if (!data.userCharBubbles) data.userCharBubbles = ['', '', ''];
+    
+    // [보정] 탭 데이터가 없거나 형식이 잘못된 경우 복구
+    if (!data.tabs || !Array.isArray(data.tabs) || data.tabs.length === 0) {
+        const legacyContent = data.memoContent || '';
+        data.tabs = [{ name: '기본 메모', content: legacyContent, color: '#ffffff' }];
+        data.activeTabIndex = 0;
+    }
+
+    // [보정] 첫 번째 탭(기본 메모)의 이름이 비어있거나 삭제된 경우 강제 생성
+    if (!data.tabs[0] || data.tabs[0].name === undefined) {
+        data.tabs.unshift({ name: '기본 메모', content: '', color: '#ffffff' });
+    }
+
+    if (data.activeTabIndex === undefined || data.activeTabIndex >= data.tabs.length) {
+        data.activeTabIndex = 0;
+    }
+    return data;
 }
 
 function applySettings() {
@@ -291,38 +297,26 @@ function applySettings() {
     const charData = getCurrentCharData();
 
     updateWandButtonStatus();
-
     if ($memoContainer.length === 0) return;
 
     $memoContainer.toggle(!!settings.enabled);
-
     const isMobile = window.innerWidth <= 768;
 
     if (!settings.pos || isNaN(settings.pos.top) || isNaN(settings.pos.left)) {
         settings.pos = { top: 50, left: 50 };
     }
 
-    // [핵심 로직] 모바일이면 #chat 태그의 크기와 위치를 가져와서 적용
     if (isMobile) {
         const $chat = $('#chat');
         if ($chat.length > 0) {
-            // #chat 요소의 정확한 화면상 좌표와 크기 계산
             const rect = $chat[0].getBoundingClientRect();
-            
             $memoContainer.css({
-                'top': rect.top + 'px',       // #chat의 상단 위치 (탑바 바로 아래)
-                'height': rect.height + 'px', // #chat의 높이 (입력창 바로 위까지)
-                'left': '50%',                // CSS에서 transform으로 중앙 정렬
-                'width': '98%',               // 화면 꽉 차게
+                'top': rect.top + 'px',
+                'height': rect.height + 'px',
+                'left': '50%',
+                'width': '98%',
                 'min-width': 'unset',
                 'min-height': 'unset'
-            });
-        } else {
-            // 만약 #chat을 못 찾을 경우 안전 장치 (화면 전체 사용)
-            $memoContainer.css({
-                'top': '50px',
-                'height': 'calc(100vh - 150px)',
-                'left': '50%'
             });
         }
     } else {
@@ -330,20 +324,19 @@ function applySettings() {
             top: `${settings.pos.top}px`,
             left: `${settings.pos.left}px`,
             width: `${settings.width}px`,
-            height: `${settings.height}px`,
-            'transform': 'none'
+            height: `${settings.height}px`, 
+            'transform': 'none',
+            'display': 'flex'
         });
     }
 
-    // [수정됨] 저장 방식에 따라 메모 내용 불러오기
-    let savedMemo = '';
+    renderTabs();
     
+    let savedMemo = '';
     if (settings.useCharacterStorage) {
-        // ON: 캐릭터 공용 데이터에서 로드
-        const charData = getCurrentCharData();
-        savedMemo = charData.memoContent || '';
+        const activeTab = charData.tabs[charData.activeTabIndex] || charData.tabs[0];
+        savedMemo = activeTab.content || '';
     } else {
-        // OFF: 채팅 메타데이터에서 로드
         savedMemo = getChatMemoData();
     }
 
@@ -392,6 +385,7 @@ function updateProfileImages() {
     const currentCharCard = characters[charId]; 
     const charData = getCurrentCharData();
 
+    // 캐릭터 이미지 결정
     let charPath = DEFAULT_AVATAR_PATH;
     if (charData.charImageOverride && charData.charImageOverride.trim() !== '') { 
         charPath = charData.charImageOverride.trim();
@@ -399,11 +393,13 @@ function updateProfileImages() {
         charPath = `/thumbnail?type=avatar&file=${currentCharCard.avatar}`;
     }
     
+    // 사용자(페르소나) 이미지 결정
     let personaPath = DEFAULT_AVATAR_PATH;
     if (charData.userImageOverride && charData.userImageOverride.trim() !== '') { 
         personaPath = charData.userImageOverride.trim();
     } else {
-        const personaFileName = user_avatar;
+        // user_avatar 변수를 직접 참조하고 없을 경우 대체값 확인
+        const personaFileName = typeof user_avatar !== 'undefined' ? user_avatar : null;
         if (personaFileName) {
             if (typeof getThumbnailUrl === 'function') {
                 personaPath = getThumbnailUrl('persona', personaFileName, true); 
@@ -421,10 +417,7 @@ function startBubbleRotation(bubbles, contentSelector, timerRef, indexRef) {
     const $bubbleContent = $(contentSelector);
     const $bubbleContainer = $bubbleContent.parent();
 
-    if (timerRef) {
-        clearInterval(timerRef);
-    }
-    
+    if (timerRef) clearInterval(timerRef);
     if (!Array.isArray(bubbles)) return { timer: null, index: 0 };
 
     const validBubbles = bubbles.filter(b => b && b.trim() !== '');
@@ -442,28 +435,20 @@ function startBubbleRotation(bubbles, contentSelector, timerRef, indexRef) {
     }
 
     let currentIndex = indexRef;
-
     const rotateBubble = () => {
         const text = validBubbles[currentIndex];
-        
         $bubbleContainer.addClass('bubble-flicker-out');
         
         setTimeout(() => {
             $bubbleContent.text(text).css('opacity', 1);
-            $bubbleContainer.removeClass('bubble-flicker-out');
-            $bubbleContainer.addClass('bubble-flicker-in');
-            
-            setTimeout(() => {
-                $bubbleContainer.removeClass('bubble-flicker-in');
-            }, 500); 
-
+            $bubbleContainer.removeClass('bubble-flicker-out').addClass('bubble-flicker-in');
+            setTimeout(() => $bubbleContainer.removeClass('bubble-flicker-in'), 500); 
             currentIndex = (currentIndex + 1) % validBubbles.length;
         }, 300); 
     };
 
     rotateBubble();
     const newTimer = setInterval(rotateBubble, 7000); 
-
     return { timer: newTimer, index: currentIndex };
 }
 
@@ -479,7 +464,6 @@ function updateBubbleDisplay(bubbles, contentSelector) {
     }
 }
 
-// Debounce 함수 정의
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
@@ -491,44 +475,39 @@ function debounce(func, wait) {
 
 function getChatMemoData() {
     const context = getContext();
-    // 채팅이 없거나 로드되지 않았으면 빈 문자열 반환
     if (!context.chat || context.chat.length === 0) return '';
-    
-    // 첫 번째 메시지의 extra 데이터 확인
     const firstMes = context.chat[0];
     if (!firstMes.extra) firstMes.extra = {};
-    
     return firstMes.extra.popupmemo_content || '';
 }
 
 const saveMemoContentDebounced = debounce(async () => {
     const content = $('#popup-memo-textarea').val();
     
-    // 모드 1: 캐릭터 공용 저장소 사용 (ON)
     if (settings.useCharacterStorage) {
-        // 캐릭터가 선택되지 않았거나 키를 생성할 수 없으면 중단
         if (this_chid === undefined || this_chid === -1) return;
+        const charData = getCurrentCharData();
+        const activeIdx = charData.activeTabIndex || 0;
         
-        const charData = getCurrentCharData(); // 수정된 함수가 고유 키를 사용하여 데이터를 가져옴
-        charData.memoContent = content;
-        
-        saveSettingsDebounced(); // settings.json에 저장
-        renderCharMemoList();    // 설정창 목록 갱신
-    } 
-    // 모드 2: 채팅별 개별 저장 (OFF)
-    else {
+        if (charData.tabs[activeIdx]) {
+            charData.tabs[activeIdx].content = content;
+            if (activeIdx === 0) charData.memoContent = content;
+        }
+        saveSettingsDebounced();
+        // 리스트 즉시 갱신
+        renderCharMemoList();
+    } else {
         const context = getContext();
         if (context.chat && context.chat.length > 0) {
             const firstMes = context.chat[0];
             if (!firstMes.extra) firstMes.extra = {};
-
             if (firstMes.extra.popupmemo_content !== content) {
                 firstMes.extra.popupmemo_content = content;
-                await saveChat(); // 채팅 파일에 저장
+                await saveChat();
             }
         }
     }
-}, 500); // 0.5초 디바운스
+}, 500);
 
 function toggleIgnoreClick() {
     settings.ignoreClick = !settings.ignoreClick;
@@ -538,17 +517,16 @@ function toggleIgnoreClick() {
 
 function renderCharMemoList() {
     const $container = $('#memo_char_list_container');
+    if ($container.length === 0) return;
     $container.empty();
 
     if (!settings.charData) return;
 
-    // 데이터가 있는 항목만 필터링 (메모가 있거나 오버라이드 설정이 있는 경우)
     const charEntries = Object.entries(settings.charData)
         .filter(([charKey, data]) => {
             return charKey !== 'no_char_selected' && (
-                (data.memoContent && data.memoContent.trim() !== '') || 
-                (data.charImageOverride || data.userImageOverride) ||
-                (data.charBubbles && data.charBubbles.some(b => b))
+                (data.tabs && data.tabs.some(t => t.content && t.content.trim() !== '')) || 
+                (data.memoContent && data.memoContent.trim() !== '')
             );
         });
 
@@ -558,42 +536,35 @@ function renderCharMemoList() {
     }
 
     charEntries.forEach(([charKey, data]) => {
-        // charKey는 이제 파일명이므로, characters 배열에서 avatar가 일치하는 캐릭터를 찾아야 함
         const charCard = characters.find(c => c.avatar === charKey || c.name === charKey);
-        // 캐릭터가 존재하면 이름을, 없으면 파일명을 표시
-        const charName = charCard ? charCard.name : `(미설치/삭제됨: ${charKey})`;
+        const charName = charCard ? charCard.name : `(미설치: ${charKey})`;
+        const tabCount = data.tabs ? data.tabs.length : 1;
         
         let memoPreview = '(메모 없음)';
-        if (data.memoContent && data.memoContent.trim() !== '') {
+        const firstTab = data.tabs ? data.tabs[0] : null;
+        if (firstTab && firstTab.content) {
+            const firstLine = firstTab.content.trim().split('\n')[0];
+            memoPreview = firstLine.substring(0, 50) + (firstLine.length > 50 ? '...' : '');
+        } else if (data.memoContent) {
             const firstLine = data.memoContent.trim().split('\n')[0];
             memoPreview = firstLine.substring(0, 50) + (firstLine.length > 50 ? '...' : '');
-        } else {
-            memoPreview = '<span style="color:#aaa; font-style:italic;">설정 데이터만 존재</span>';
         }
 
         const listItem = `
             <div class="memo-list-item" data-char-key="${charKey}" style="border-left: 4px solid #6b82d8;">
                 <div class="memo-list-item-content">
-                    <div style="font-weight:bold; color:#555;">${charName}</div>
+                    <div style="font-weight:bold; color:#555;">${charName} <span style="font-size:0.8em; color:#6b82d8; font-weight:normal;">(${tabCount} 탭)</span></div>
                     <div style="font-size:0.85em; color:#777; margin-top:2px;">${memoPreview}</div>
                 </div>
                 <div class="memo-btn-group">
-                    <button class="memo-copy-btn" data-char-key="${charKey}" title="메모 복사">
-                        <i class="fa-solid fa-copy"></i>
-                    </button>
-                    <button class="memo-migrate-btn" data-char-key="${charKey}" title="현재 채팅으로 가져오기">
-                        <i class="fa-solid fa-file-import"></i>
-                    </button>
-                    <button class="memo-delete-btn" data-char-key="${charKey}" title="데이터 완전 삭제">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                    <button class="memo-copy-btn" data-char-key="${charKey}" title="메모 복사"><i class="fa-solid fa-copy"></i></button>
+                    <button class="memo-migrate-btn" data-char-key="${charKey}" title="가져오기"><i class="fa-solid fa-file-import"></i></button>
+                    <button class="memo-delete-btn" data-char-key="${charKey}" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
-            </div>
-        `;
+            </div>`;
         $container.append(listItem);
     });
     
-    // 이벤트 바인딩 (data 속성 이름이 charId -> charKey로 변경됨에 유의)
     $('.memo-copy-btn').off('click').on('click', copyCharMemo);
     $('.memo-migrate-btn').off('click').on('click', migrateCharMemo);
     $('.memo-delete-btn').off('click').on('click', deleteCharMemo);
@@ -602,221 +573,102 @@ function renderCharMemoList() {
 function copyCharMemo(e) {
     const charKey = $(e.currentTarget).data('charKey');
     const data = settings.charData[charKey];
-    
-    if (data && data.memoContent) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(data.memoContent).then(() => {
-                showToast('success', '메모 내용이 클립보드에 복사되었습니다.');
-            }).catch(err => {
-                console.error('클립보드 복사 실패:', err);
-                showToast('error', '복사에 실패했습니다. 콘솔을 확인해주세요.');
-            });
-        } else {
-            showToast('warning', '클립보드 API를 사용할 수 없는 환경입니다.');
-        }
+    if (data && data.tabs) {
+        const allTabsContent = data.tabs.map(tab => `[${tab.name}]\n${tab.content || ''}`).join('\n\n---\n\n');
+        navigator.clipboard.writeText(allTabsContent).then(() => showToast('success', '클립보드에 복사되었습니다.'));
     }
 }
 
-async function migrateCharMemo(e) {
+function migrateCharMemo(e) {
     const oldCharKey = $(e.currentTarget).data('charKey');
+    const currentCharKey = getCharacterKey(this_chid);
     
-    // UI에서 보여지는 이름 가져오기 (안전 처리)
-    const $itemDiv = $(e.currentTarget).closest('.memo-list-item');
-    const displayName = $itemDiv.find('.memo-list-item-content > div:first-child').text() || '대상 캐릭터';
-
-    // 1. 가져올 데이터 원본 확인
-    const sourceData = settings.charData[oldCharKey];
-    const contentToMigrate = sourceData ? sourceData.memoContent : '';
-
-    if (!contentToMigrate) {
-        showToast('error', '이동할 데이터가 비어있습니다.');
+    if (!currentCharKey) {
+        showToast('error', '캐릭터를 먼저 선택해주세요.');
         return;
     }
-
-    // 2. 사용자 확인
-    if (!confirm(`'${displayName}'의 데이터를 현재 화면으로 가져오시겠습니까?\n\n주의: 현재 입력창의 내용은 덮어씌워집니다.`)) {
+    if (oldCharKey === currentCharKey) {
+        showToast('info', '현재 활성화된 캐릭터입니다.');
         return;
     }
+    
+    if (!confirm('이 캐릭터의 모든 탭 정보를 현재 캐릭터로 가져오시겠습니까? 현재 메모가 덮어씌워지며 기존 데이터는 삭제됩니다.')) return;
 
-    // 3. [핵심 수정] 현재 활성화된 저장 모드에 따라 목적지 결정
-    if (settings.useCharacterStorage) {
-        // [CASE A] 글로벌 저장소 모드 사용 중 (Settings.json에 저장해야 함)
-        // 현재 캐릭터의 올바른 키(파일명)를 가져옴
-        const currentCharKey = getCharacterKey(this_chid);
-        
-        if (!currentCharKey) {
-            showToast('error', '현재 선택된 캐릭터를 식별할 수 없습니다.');
-            return;
-        }
-
-        // 데이터 구조가 없으면 생성 (getCurrentCharData 로직 활용 가능하나 명시적으로 처리)
-        if (!settings.charData[currentCharKey]) {
-            getCurrentCharData(); 
-        }
-
-        // 새로운 키 위치에 내용 주입
-        settings.charData[currentCharKey].memoContent = contentToMigrate;
-        
-        // *중요*: 글로벌 모드에서는 saveChat이 아니라 saveSettings가 필요함
-        // (아래 공통 로직에서 saveSettingsDebounced가 호출됨)
-
-    } else {
-        // [CASE B] 채팅별 개별 저장 모드 사용 중 (Chat 파일에 저장해야 함)
-        const context = getContext();
-        if (!context.chat || context.chat.length === 0) {
-            showToast('warning', '메모를 저장할 활성화된 채팅이 없습니다.');
-            return;
-        }
-
-        if (!context.chat[0].extra) context.chat[0].extra = {};
-        context.chat[0].extra.popupmemo_content = contentToMigrate;
-
-        // 채팅 파일 저장
-        await saveChat();
-    }
-
-    // 4. UI 즉시 갱신 (텍스트박스에 바로 보여주기)
-    $('#popup-memo-textarea').val(contentToMigrate);
-
-    // 5. 기존(과거) 데이터 삭제
+    // 데이터 복사
+    settings.charData[currentCharKey] = JSON.parse(JSON.stringify(settings.charData[oldCharKey]));
+    
+    // 원본 데이터 삭제 (이동 처리)
     delete settings.charData[oldCharKey];
-
-    // 6. 설정 저장 (삭제된 내용 반영 및 글로벌 모드일 경우 변경된 내용 저장)
-    saveSettingsDebounced();
-
-    // 7. 리스트 UI 갱신 (이동된 항목 사라짐)
-    renderCharMemoList();
     
-    showToast('success', `데이터가 성공적으로 이동되었습니다.`);
+    saveSettingsDebounced();
+    applySettings(); // UI 및 텍스트 영역 즉시 갱신
+    renderCharMemoList(); // 목록 갱신
+    showToast('success', '데이터를 성공적으로 이동했습니다.');
 }
-
 function deleteCharMemo(e) {
     const charKeyToDelete = $(e.currentTarget).data('charKey');
-    const charName = $(e.currentTarget).closest('.memo-list-item').find('b').text(); // 주의: 위쪽 render에서 b태그를 안쓰고 div font-weight:bold를 썼으므로 선택자 조정 필요할 수 있음, 아래 수정됨.
-    
-    // 안전하게 이름 가져오기
-    const displayName = $(e.currentTarget).closest('.memo-list-item').find('.memo-list-item-content > div:first-child').text() || '캐릭터';
-
-    if (confirm(`정말로 '${displayName}' 캐릭터의 메모와 모든 설정을 삭제하시겠습니까?`)) {
+    if (confirm('정말로 이 캐릭터의 모든 데이터를 삭제하시겠습니까?')) {
         delete settings.charData[charKeyToDelete];
-        
-        // 만약 현재 보고 있는 캐릭터의 데이터를 삭제했다면 입력창도 비워줌
-        const currentCharKey = getCharacterKey(this_chid);
-        if (currentCharKey === charKeyToDelete) {
-            $('#popup-memo-textarea').val('');
-        }
-        
         saveSettingsDebounced();
         renderCharMemoList();
-        applySettings();
     }
 }
 
 function onSettingChange() {
     const charData = getCurrentCharData();
-    
     settings.enabled = $('#memo_enable_toggle').prop('checked');
-    
-    // [추가됨] 저장 방식 토글 값 저장
     const prevMode = settings.useCharacterStorage;
     settings.useCharacterStorage = $('#memo_storage_mode_toggle').prop('checked');
     
-    // 모드가 바뀌었으면 즉시 메모 내용을 다시 불러와서 교체해줌 (중요!)
-    if (prevMode !== settings.useCharacterStorage) {
-        applySettings();
-    }
+    if (prevMode !== settings.useCharacterStorage) applySettings();
 
     settings.showWandButton = $('#memo_show_wand_button').prop('checked');
-
     settings.bgOpacity = parseFloat($('#memo_bg_opacity_input').val()) || 0.7;
     settings.bgImage = $('#memo_bg_image_input').val().trim();
-    
     settings.charBubbleColor = $('#memo_char_bubble_color_input').val().trim() || '#FFFFFF';
     settings.userBubbleColor = $('#memo_user_bubble_color_input').val().trim() || '#F0F0F0';
     
     charData.userImageOverride = $('#memo_user_image_override').val().trim();
-
-    settings.charBubbles = $('.memo-global-char-bubble-input').map(function() {
-        return $(this).val();
-    }).get();
-    
-    settings.userBubbles = $('.memo-global-user-bubble-input').map(function() {
-        return $(this).val();
-    }).get();
-    
-    charData.charBubbles = $('.memo-char-bubble-input').map(function() {
-        return $(this).val();
-    }).get();
-
-    charData.userCharBubbles = $('.memo-user-char-bubble-input').map(function() {
-        return $(this).val();
-    }).get();
-
     charData.charImageOverride = $('#memo_char_image_override').val().trim();
-    
-    updateWandMenuVisibility();
 
+    settings.charBubbles = $('.memo-global-char-bubble-input').map(function() { return $(this).val(); }).get();
+    settings.userBubbles = $('.memo-global-user-bubble-input').map(function() { return $(this).val(); }).get();
+    charData.charBubbles = $('.memo-char-bubble-input').map(function() { return $(this).val(); }).get();
+    charData.userCharBubbles = $('.memo-user-char-bubble-input').map(function() { return $(this).val(); }).get();
+
+    updateWandMenuVisibility();
     applySettings();
     saveSettingsDebounced();
 }
 
 function loadSettingsToUI() {
     const charData = getCurrentCharData();
-    // this_chid가 있고 실제 characters 객체에 존재하는지 확인
-    const isCharSelected = this_chid && characters[this_chid];
+    const isCharSelected = this_chid !== undefined && this_chid !== -1 && characters[this_chid];
     const charName = isCharSelected ? characters[this_chid].name : '캐릭터 미선택';
 
-    // 토글 스위치 상태 반영
     $('#memo_enable_toggle').prop('checked', settings.enabled);
     $('#memo_storage_mode_toggle').prop('checked', settings.useCharacterStorage);
     $('#memo_show_wand_button').prop('checked', settings.showWandButton);
-
-    // 값 입력 필드 반영
     $('#memo_bg_opacity_input').val(settings.bgOpacity);
     $('#memo_bg_image_input').val(settings.bgImage);
-    
     $('#memo_char_bubble_color_input').val(settings.charBubbleColor);
     $('#memo_user_bubble_color_input').val(settings.userBubbleColor);
-    
-    $('#memo_char_bubble_color_input_text').val(settings.charBubbleColor);
-    $('#memo_user_bubble_color_input_text').val(settings.userBubbleColor);
-    
-    // UI상 캐릭터 이름 업데이트 (말풍선 탭)
     $('#memo_current_char_name').text(charName);
 
-    // [수정됨] 캐릭터 선택 여부에 따라 오버라이드 UI 토글
     if (isCharSelected) {
         $('#memo_override_container').show();
         $('#memo_no_char_message').hide();
-        
-        // 데이터가 있을 때만 값 채우기
         $('#memo_user_image_override').val(charData.userImageOverride);
         $('#memo_char_image_override').val(charData.charImageOverride);
-
-        if (!charData.charBubbles) charData.charBubbles = ['', '', ''];
-        charData.charBubbles.forEach((bubble, index) => {
-            $(`#memo_char_bubble_${index + 1}`).val(bubble);
-        });
-        
-        if (!charData.userCharBubbles) charData.userCharBubbles = ['', '', ''];
-        charData.userCharBubbles.forEach((bubble, index) => {
-            $(`#memo_user_char_bubble_${index + 1}`).val(bubble);
-        });
-
+        (charData.charBubbles || ['', '', '']).forEach((b, i) => $(`#memo_char_bubble_${i + 1}`).val(b));
+        (charData.userCharBubbles || ['', '', '']).forEach((b, i) => $(`#memo_user_char_bubble_${i + 1}`).val(b));
     } else {
         $('#memo_override_container').hide();
         $('#memo_no_char_message').show();
     }
 
-    // 전역 말풍선 (항상 표시)
-    settings.charBubbles.forEach((bubble, index) => {
-        $(`#memo_global_char_bubble_${index + 1}`).val(bubble);
-    });
-    settings.userBubbles.forEach((bubble, index) => {
-        $(`#memo_global_user_bubble_${index + 1}`).val(bubble);
-    });
-    
-    // 데이터 관리 리스트 렌더링
+    settings.charBubbles.forEach((b, i) => $(`#memo_global_char_bubble_${i + 1}`).val(b));
+    settings.userBubbles.forEach((b, i) => $(`#memo_global_user_bubble_${i + 1}`).val(b));
     renderCharMemoList();
 }
 
@@ -824,123 +676,227 @@ function onCharacterChange() {
     loadSettingsToUI(); 
     applySettings(); 
 }
+
 function exportSettings() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings, null, 2));
+    const exportData = JSON.parse(JSON.stringify(settings));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchorNode = document.createElement('a');
-    const date = new Date().toISOString().slice(0, 10);
-    
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `popupmemo_backup_${date}.json`);
+    downloadAnchorNode.setAttribute("download", `popupmemo_backup.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+}
+
+function renderTabs() {
+    const charData = getCurrentCharData();
+    const $container = $('#memo-tabs-container');
+    if (!$container.length) return;
+
+    $container.empty();
+    if (!settings.useCharacterStorage) {
+        $container.hide();
+        return;
+    }
+    $container.show();
+
+    charData.tabs.forEach((tab, index) => {
+        const isActive = index === charData.activeTabIndex;
+        const tabColor = tab.color || (isActive ? '#ffffff' : 'rgba(240, 240, 240, 0.85)');
+        
+        const $tab = $(`
+            <div class="memo-tab ${isActive ? 'active' : ''}" data-index="${index}" style="--tab-bg: ${tabColor}">
+                ${isTabEditMode ? '<i class="fa-solid fa-pen memo-tab-edit-icon"></i>' : ''}
+                <span class="memo-tab-name">${tab.name}</span>
+                ${(isTabEditMode && charData.tabs.length > 1) ? '<i class="fa-solid fa-xmark memo-tab-close"></i>' : ''}
+            </div>
+        `);
+
+        $tab.on('click', (e) => {
+            if (isTabEditMode && ($(e.target).hasClass('memo-tab-edit-icon') || $(e.target).hasClass('fa-pen'))) {
+                openTabSettings(e, index);
+            } else if ($(e.target).hasClass('memo-tab-close') || $(e.target).hasClass('fa-xmark')) {
+                deleteTab(index);
+            } else {
+                switchTab(index);
+            }
+        });
+        $container.append($tab);
+    });
+
+    const $tools = $(`
+        <div class="memo-tab-tools">
+            ${isTabEditMode ? '<div class="memo-tab-tool-btn memo-tab-add" title="새 탭 추가"><i class="fa-solid fa-plus"></i></div>' : ''}
+            <div class="memo-tab-tool-btn memo-tab-edit-toggle ${isTabEditMode ? 'active' : ''}" title="탭 편집 모드">
+                <i class="fa-solid fa-gear"></i>
+            </div>
+        </div>
+    `);
+
+    $tools.find('.memo-tab-add').on('click', (e) => { e.stopPropagation(); addTab(); });
+    $tools.find('.memo-tab-edit-toggle').on('click', (e) => {
+        e.stopPropagation();
+        isTabEditMode = !isTabEditMode;
+        renderTabs();
+    });
+    $container.append($tools);
+}
+
+function openTabSettings(e, index) {
+    e.preventDefault(); 
+    e.stopPropagation(); // 탭 전환 이벤트 전파 방지
     
-    showToast('success', 'PopupMemo 설정이 내보내졌습니다.');
+    const $container = $('#popup-memo-container');
+    $('#memo-tab-edit-popup').remove();
+    
+    const charData = getCurrentCharData();
+    const tab = charData.tabs[index];
+    const $popup = $(`
+        <div id="memo-tab-edit-popup" data-index="${index}" style="display: flex !important;">
+            <div style="font-weight:bold; font-size:0.85rem; margin-bottom:5px;">탭 설정</div>
+            <input type="text" id="edit-tab-name" value="${tab.name}" placeholder="탭 이름">
+            <div class="color-picker-row">
+                <span>색상:</span>
+                <input type="color" id="edit-tab-color" value="${tab.color || '#ffffff'}">
+            </div>
+            <button id="save-tab-settings" class="menu_button blue_button" style="width:100%; margin-top:5px;">저장</button>
+        </div>
+    `);
+
+    $container.append($popup);
+    
+    // 위치 계산
+    const rect = e.currentTarget.getBoundingClientRect();
+    const containerRect = $container[0].getBoundingClientRect();
+    $popup.css({ 
+        top: (rect.bottom - containerRect.top + 5) + 'px', 
+        left: Math.max(0, rect.left - containerRect.left) + 'px' 
+    });
+
+    // 이벤트 바인딩
+    $('#save-tab-settings').on('click', (ev) => {
+        ev.stopPropagation();
+        const newName = $('#edit-tab-name').val().trim();
+        if (newName) {
+            tab.name = newName;
+            tab.color = $('#edit-tab-color').val();
+            saveSettingsDebounced();
+            renderTabs();
+            $popup.remove();
+        }
+    });
+
+    // 입력창 클릭 시 팝업이 닫히지 않도록 방지
+    $popup.on('mousedown', (ev) => ev.stopPropagation());
+
+    // 외부 클릭 시 닫기 (메모장 텍스트 영역 포함)
+    setTimeout(() => {
+        $(document).one('mousedown.closeTabPopup', (de) => {
+            if (!$(de.target).closest('#memo-tab-edit-popup').length) {
+                $popup.remove();
+            }
+        });
+    }, 50);
+}
+
+function switchTab(index) {
+    const charData = getCurrentCharData();
+    // 1. 현재 텍스트를 현재 활성화된 탭에 먼저 저장
+    const currentContent = $('#popup-memo-textarea').val();
+    if (charData.tabs[charData.activeTabIndex]) {
+        charData.tabs[charData.activeTabIndex].content = currentContent;
+    }
+
+    // 2. 인덱스 변경 및 UI 갱신
+    charData.activeTabIndex = index;
+    $('#popup-memo-textarea').val(charData.tabs[index].content || '');
+    
+    renderTabs();
+    saveSettingsDebounced();
+}
+
+function addTab() {
+    const charData = getCurrentCharData();
+    charData.tabs.push({ name: `새 탭 ${charData.tabs.length + 1}`, content: '', color: '#ffffff' });
+    switchTab(charData.tabs.length - 1);
+}
+
+function deleteTab(index) {
+    // 기본 메모(0번 인덱스) 삭제 방지
+    if (index === 0) {
+        showToast('error', '기본 메모 탭은 삭제할 수 없습니다.');
+        return;
+    }
+
+    const charData = getCurrentCharData();
+    if (charData.tabs.length <= 1) return;
+    
+    if (confirm(`'${charData.tabs[index].name}' 탭을 삭제하시겠습니까?`)) {
+        charData.tabs.splice(index, 1);
+        
+        // 인덱스 보정: 삭제한 탭이 현재 탭이거나 앞쪽이라면 인덱스 조정
+        if (charData.activeTabIndex >= index) {
+            charData.activeTabIndex = Math.max(0, charData.activeTabIndex - 1);
+        }
+        
+        $('#popup-memo-textarea').val(charData.tabs[charData.activeTabIndex].content || '');
+        renderTabs();
+        saveSettingsDebounced();
+    }
 }
 
 function importSettings(event) {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const importedSettings = JSON.parse(e.target.result);
-            
-            // 유효성 검사 (간단하게)
-            if (typeof importedSettings !== 'object') throw new Error('Invalid JSON');
-
-            // 기존 설정 덮어쓰기
-            Object.assign(settings, importedSettings);
+            const imported = JSON.parse(e.target.result);
+            Object.assign(settings, imported);
             saveSettingsDebounced();
-            
-            // UI 갱신
             loadSettingsToUI();
             applySettings();
-            
-            showToast('success', '설정을 성공적으로 불러왔습니다.');
+            showToast('success', '설정을 불러왔습니다.');
         } catch (err) {
-            console.error('[PopupMemo] Import failed:', err);
-            showToast('error', '설정 불러오기 실패: 올바른 JSON 파일이 아닙니다.');
+            showToast('error', '올바른 파일이 아닙니다.');
         }
-        // input 초기화 (같은 파일 다시 로드 가능하게)
-        event.target.value = '';
     };
     reader.readAsText(file);
 }
-(async function() {
-    console.log('[PopupMemo] Extension loading...');
 
+(async function() {
     try {
         settings = extension_settings.Popupmemo = extension_settings.Popupmemo || DEFAULT_SETTINGS;
-        if (Object.keys(settings).length === 0) {
-            settings = Object.assign(extension_settings.Popupmemo, DEFAULT_SETTINGS);
-        }
+        if (Object.keys(settings).length === 0) Object.assign(settings, DEFAULT_SETTINGS);
         
-        if (!settings.charBubbles) settings.charBubbles = DEFAULT_SETTINGS.charBubbles;
-        if (!settings.userBubbles) settings.userBubbles = DEFAULT_SETTINGS.userBubbles;
-        if (!settings.charBubbleColor) settings.charBubbleColor = DEFAULT_SETTINGS.charBubbleColor;
-        if (!settings.userBubbleColor) settings.userBubbleColor = DEFAULT_SETTINGS.userBubbleColor;
-        if (!settings.pos) settings.pos = { top: 50, left: 50 }; 
-        if (settings.showWandButton === undefined) settings.showWandButton = true;
-
         createMemoPopup();
+        $(document).on('mousedown', '#popup-memo-container', (e) => e.stopPropagation());
         updateProfileImages();
         addToWandMenu();
 
         try {
             const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
             $("#extensions_settings2").append(settingsHtml);
-
             $('#memo_enable_toggle, #memo_storage_mode_toggle, #memo_bg_opacity_input').on('change', onSettingChange);
             $('#memo_show_wand_button').on('change', onSettingChange);
-
             $('#memo_char_bubble_color_input, #memo_user_bubble_color_input').on('change', onSettingChange); 
-            
             $('.memo-global-char-bubble-input, .memo-global-user-bubble-input, .memo-char-bubble-input, .memo-user-char-bubble-input').on('input', onSettingChange); 
             $('#memo_char_image_override, #memo_user_image_override').on('input', onSettingChange);
-
-            $('#memo_apply_bg_btn').on('click', () => {
-                onSettingChange();
-                $('#memo_bg_image_input').blur();
-            });
-
-            $('#memo_reset_bubbles_btn').on('click', () => {
-                if (confirm('모든 글로벌 말풍선 대사 내용을 초기화하시겠습니까? (캐릭터별 설정은 유지됩니다)')) {
-                    $('.memo-global-char-bubble-input').val('');
-                    $('.memo-global-user-bubble-input').val(''); 
-                    onSettingChange();
-                }
-            });
+            $('#memo_apply_bg_btn').on('click', onSettingChange);
             $('#memo_export_btn').on('click', exportSettings);
-            
-            $('#memo_import_btn_trigger').on('click', () => {
-                $('#memo_import_file').click();
-            });
-            
+            $('#memo_import_btn_trigger').on('click', () => $('#memo_import_file').click());
             $('#memo_import_file').on('change', importSettings);
             loadSettingsToUI();
-
-        } catch (error) {
-            console.error(`[${extensionName}] Failed to load settings.html:`, error);
-        }
+        } catch (error) { console.error('Settings load fail', error); }
 
         applySettings();
-
         eventSource.on(event_types.CHARACTER_SELECTED, onCharacterChange);
         eventSource.on(event_types.USER_AVATAR_UPDATED, updateProfileImages);
-        
+        eventSource.on(event_types.SETTINGS_UPDATED, updateProfileImages); // 설정 변경 시 즉시 갱신 추가
         eventSource.on(event_types.CHAT_CHANGED, () => {
             updateProfileImages(); 
-            loadSettingsToUI();
+            loadSettingsToUI(); 
             applySettings(); 
         });
-        
-        eventSource.on(event_types.SETTINGS_UPDATED, updateProfileImages);
-        
-        console.log('[PopupMemo] Extension loaded successfully.');
-
-    } catch (e) {
-        console.error('[PopupMemo] Critical Error during initialization:', e);
-    }
+    } catch (e) { console.error('Init Error', e); }
 })();

@@ -1,5 +1,5 @@
 /* =========================================
-   1. 팝업 메모장 본체 스타일
+   1. 팝업 메모장 본체 스타일 (수정됨)
    ========================================= */
 
 #popup-memo-container {
@@ -8,29 +8,21 @@
     left: 50px;
     width: 350px; 
     min-width: 280px; 
-    min-height: 250px; /* 높이 약간 확보 */
-    border-radius: 12px;
+    min-height: 200px; 
+    border-radius: 12px; /* 좌측 상단 0을 12px로 수정 */
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
     z-index: 1500;
     cursor: grab;
     display: flex;
     flex-direction: column;
-    overflow: hidden; 
-    resize: both; 
+    resize: none; /* JS 리사이징 핸들을 사용하므로 none으로 설정 */
     transition: transform 0.1s ease;
-
     background-color: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(5px);
     border: 1px solid rgba(255, 255, 255, 0.5);
-
     user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-
-    --char-bubble-color: #FFFFFF; 
-    --user-bubble-color: #F0F0F0; 
 }
+
 
 #popup-memo-container.grabbing {
     cursor: grabbing;
@@ -509,4 +501,152 @@
         cursor: default !important;
         padding: 8px 10px;
     }
+}
+
+/* =========================================
+   3. 탭(폴더) 시스템 스타일 (수정됨)
+   ========================================= */
+#memo-tabs-container {
+    position: absolute;
+    top: -42px; /* 기존 -31px에서 위로 더 올림 */
+    left: -1px;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0 5px;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    pointer-events: auto;
+    z-index: 1501;
+    height: 45px; /* 컨테이너 높이 확보 */
+    pointer-events: auto !important; /* 탭 영역은 항상 클릭 가능 */
+}
+
+#memo-tabs-container::-webkit-scrollbar {
+    display: none;
+}
+
+/* 탭 기본 스타일 */
+.memo-tab {
+    cursor: pointer;
+    padding: 0 15px;
+    background: rgba(220, 220, 220, 0.9);
+    border-radius: 10px 10px 0 0 !important; /* 상단 곡률 고정 */
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    color: #666;
+    max-width: 140px;
+    height: 30px; /* 기본 높이 */
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-bottom: none;
+    position: relative;
+}
+
+/* 클릭된(활성화된) 탭 스타일 */
+.memo-tab.active {
+    background: var(--tab-bg, #ffffff) !important;
+    height: 35px; /* 활성 탭을 더 높게 설정 */
+    margin-bottom: -1px;
+    font-weight: bold;
+    color: #000;
+    z-index: 1502;
+    border-top: 3px solid var(--char-bubble-color, #6b82d8) !important;
+    border-radius: 12px 12px 0 0 !important; /* 활성 상태에서 곡률 더 강조 */
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+}
+
+/* 탭 편집 모드 관련 아이콘 */
+.memo-tab-edit-icon {
+    font-size: 0.75rem;
+    color: #6b82d8;
+}
+
+.memo-tab-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 8px 8px 0 0;
+    height: 30px;
+    margin-bottom: 0;
+    align-self: flex-end;
+}
+
+/* 리사이징 핸들 스타일 추가 */
+#memo-resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 15px;
+    height: 15px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.1) 70%, transparent 70%, transparent 80%, rgba(0, 0, 0, 0.1) 80%);
+    border-radius: 0 0 12px 0;
+    z-index: 1510;
+}
+
+#memo-tab-edit-popup {
+    position: absolute;
+    background: var(--sk-panel-bg, rgba(255, 255, 255, 0.98)); /* 테마 대응 */
+    color: #333;
+    border: 1px solid rgba(107, 130, 216, 0.5);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    z-index: 3000 !important; /* 최상단 유지 */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 200px;
+    backdrop-filter: blur(15px);
+    animation: fadeIn 0.2s ease;
+    /* [핵심] 부모가 클릭 무시 상태여도 이 팝업은 클릭 가능해야 함 */
+    pointer-events: auto !important; 
+}
+
+#memo-tab-edit-popup input, 
+#memo-tab-edit-popup button {
+    pointer-events: auto !important;
+}
+
+#memo-tab-edit-popup input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.color-picker-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #555;
+}
+
+/* 탭 도구 버튼 애니메이션 */
+.memo-tab-tool-btn {
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.memo-tab-tool-btn:hover {
+    background: rgba(0,0,0,0.1);
+}
+
+.memo-tab-tool-btn.active {
+    color: #EC407A;
 }
