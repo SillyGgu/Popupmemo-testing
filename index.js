@@ -677,12 +677,50 @@ function onCharacterChange() {
     applySettings(); 
 }
 
+function isCharDataEmpty(data) {
+    if (!data) return true;
+
+    // 1. 탭 내용이 하나라도 있는지 확인
+    const hasTabsContent = data.tabs && data.tabs.some(t => t.content && t.content.trim() !== '');
+    
+    // 2. 개별 캐릭터 대사가 설정되어 있는지 확인
+    const hasCharBubbles = data.charBubbles && data.charBubbles.some(b => b && b.trim() !== '');
+    const hasUserCharBubbles = data.userCharBubbles && data.userCharBubbles.some(b => b && b.trim() !== '');
+    
+    // 3. 이미지 오버라이드 설정이 있는지 확인
+    const hasCharOverride = data.charImageOverride && data.charImageOverride.trim() !== '';
+    const hasUserOverride = data.userImageOverride && data.userImageOverride.trim() !== '';
+
+    // 위 항목 중 하나라도 해당되면 비어있지 않은 데이터임
+    return !(hasTabsContent || hasCharBubbles || hasUserCharBubbles || hasCharOverride || hasUserOverride);
+}
+
 function exportSettings() {
+    // 전체 설정을 깊은 복사
     const exportData = JSON.parse(JSON.stringify(settings));
+    
+    // charData가 존재한다면 필터링 진행
+    if (exportData.charData) {
+        const filteredCharData = {};
+        
+        for (const [key, data] of Object.entries(exportData.charData)) {
+            // 'no_char_selected' 키이거나 데이터가 비어있다면 제외
+            if (key === 'no_char_selected') continue;
+            
+            if (!isCharDataEmpty(data)) {
+                filteredCharData[key] = data;
+            }
+        }
+        
+        // 필터링된 데이터로 교체
+        exportData.charData = filteredCharData;
+    }
+
+    // 파일 다운로드 로직
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `popupmemo_backup.json`);
+    downloadAnchorNode.setAttribute("download", `popupmemo_backup_${new Date().toISOString().slice(0,10)}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
